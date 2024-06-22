@@ -78,10 +78,20 @@ impl Cpu {
             Instruction::Clv => self.status.set_overflow(false),
             Instruction::Dec => {
                 let location = self.get_location(&addr_mode);
-                self.dec_location(location);
+                self.dec_memory(location);
             }
             Instruction::Dex => self.dec_register(Register::X),
             Instruction::Dey => self.dec_register(Register::Y),
+            Instruction::Eor => {
+                let value = self.get_value(&addr_mode);
+                self.xor_accumulator(value);
+            }
+            Instruction::Inc => {
+                let location = self.get_location(&addr_mode);
+                self.inc_memory(location);
+            }
+            Instruction::Inx => self.inc_register(Register::X),
+            Instruction::Iny => self.inc_register(Register::Y),
             Instruction::Lda => {
                 let value = self.get_value(&addr_mode);
                 self.load(Register::A, value);
@@ -197,8 +207,12 @@ impl Cpu {
         self.memory_write(value, location);
     }
 
-    fn dec_location(&mut self, location: MemLocation) {
+    fn dec_memory(&mut self, location: MemLocation) {
         self.memory_write(self.memory_read(location) - 1, location);
+
+        let new_value = self.memory_read(location);
+        self.status.set_zero(new_value == 0);
+        self.status.set_negative(new_value << 7 == 1);
     }
 
     fn dec_register(&mut self, reg: Register) {
@@ -255,6 +269,34 @@ impl Cpu {
 
         self.status.set_zero(self.accumulator == 0);
         self.status.set_negative(self.accumulator << 7 == 1);
+    }
+
+    fn xor_accumulator(&mut self, value: u8) {
+        self.accumulator |= value;
+
+        self.status.set_zero(self.accumulator == 0);
+        self.status.set_negative(self.accumulator << 7 == 1);
+    }
+
+    fn inc_memory(&mut self, location: MemLocation) {
+        self.memory_write(self.memory_read(location) + 1, location);
+
+        let new_value = self.memory_read(location);
+        self.status.set_zero(new_value == 0);
+        self.status.set_negative(new_value << 7 == 1);
+    }
+
+    fn inc_register(&mut self, reg: Register) {
+        let reg_ref = match reg {
+            Register::X => &mut self.x,
+            Register::Y => &mut self.y,
+            _ => panic!("Decriment invalid register {:?}", reg),
+        };
+
+        *reg_ref += 1;
+
+        self.status.set_zero(*reg_ref == 0);
+        self.status.set_negative(*reg_ref << 7 == 1);
     }
 }
 
