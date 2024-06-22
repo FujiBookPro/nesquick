@@ -3,24 +3,24 @@ use crate::opcode::Instruction;
 use crate::opcode::Opcode;
 
 pub struct Cpu {
-    pub a: u8,
+    pub accumulator: u8,
     pub x: u8,
     pub y: u8,
     pub pc: u16,
-    pub s: CpuStatus,
-    pub p: u8,
+    pub status: CpuStatus,
+    pub stack_pointer: u8,
     pub memory: Vec<u8>,
 }
 
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
-            a: 0,
+            accumulator: 0,
             x: 0,
             y: 0,
             pc: 0,
-            s: CpuStatus::new(),
-            p: 0,
+            status: CpuStatus::new(),
+            stack_pointer: 0,
             memory: vec![0; 0xffff],
         }
     }
@@ -44,7 +44,7 @@ impl Cpu {
                 }
                 self.run_instruction(opcode);
 
-                println!("A: {:x}, PC: {:x} 0x02: {:x} 0x05: {:x}", self.a, self.pc, self.memory[0x02], self.memory[0x05]);
+                println!("A: {:x}, PC: {:x} 0x02: {:x} 0x05: {:x}", self.accumulator, self.pc, self.memory[0x02], self.memory[0x05]);
             } else {
                 panic!("Unimplimented opcode {:x}", code);
             }
@@ -72,6 +72,16 @@ impl Cpu {
                 }
             }
             Instruction::Brk => unreachable!(), // FIXME: Handle BRK more cleanly
+            Instruction::Clc => self.status.set_carry(false),
+            Instruction::Cld => self.status.set_decimal(false),
+            Instruction::Cli => self.status.set_int_disable(false),
+            Instruction::Clv => self.status.set_overflow(false),
+            Instruction::Dec => {
+                let location = self.get_location(&addr_mode);
+                self.dec_location(location);
+            }
+            Instruction::Dex => self.dec_register(Register::X),
+            Instruction::Dey => self.dec_register(Register::Y),
             Instruction::Lda => {
                 let value = self.get_value(&addr_mode);
                 self.load(Register::A, value);
@@ -121,7 +131,7 @@ impl Cpu {
                     MemLocation::page_0(self.memory_read(MemLocation::page_0(a)) + self.y);
                 self.memory_read(location)
             }
-            _ => panic!("Invalid address mode")
+            _ => panic!("Invalid address mode {:?}", addr_mode)
         }
     }
 
@@ -164,7 +174,7 @@ impl Cpu {
 
     fn load(&mut self, reg: Register, value: u8) {
         let reg_ref = match reg {
-            Register::A => &mut self.a,
+            Register::A => &mut self.accumulator,
             Register::X => &mut self.x,
             Register::Y => &mut self.y,
             _ => panic!("Load into invalid register {:?}", reg),
@@ -172,19 +182,36 @@ impl Cpu {
 
         *reg_ref = value;
 
-        self.s.set_zero(*reg_ref == 0);
-        self.s.set_negative(*reg_ref << 7 == 1);
+        self.status.set_zero(*reg_ref == 0);
+        self.status.set_negative(*reg_ref << 7 == 1);
     }
 
     fn store(&mut self, reg: Register, location: MemLocation) {
         let value = match reg {
-            Register::A => self.a,
+            Register::A => self.accumulator,
             Register::X => self.x,
             Register::Y => self.y,
             _ => panic!("Store from invalid register {:?}", reg),
         };
 
         self.memory_write(value, location);
+    }
+
+    fn dec_location(&mut self, location: MemLocation) {
+        self.memory_write(self.memory_read(location) - 1, location);
+    }
+
+    fn dec_register(&mut self, reg: Register) {
+        let reg_ref = match reg {
+            Register::X => &mut self.x,
+            Register::Y => &mut self.y,
+            _ => panic!("Decriment invalid register {:?}", reg),
+        };
+
+        *reg_ref -= 1;
+
+        self.status.set_zero(*reg_ref == 0);
+        self.status.set_negative(*reg_ref << 7 == 1);
     }
 
     fn add_accumulator(&mut self, value: u8) {
@@ -194,40 +221,40 @@ impl Cpu {
         //   1 11111111
         // +   00000001
         // = 0 00000001
-        let carry = (self.a as u16 + value as u16 > 255) ^ self.s.get_carry();
-        self.a = self.a.wrapping_add(value);
+        let carry = (self.accumulator as u16 + value as u16 > 255) ^ self.status.get_carry();
+        self.accumulator = self.accumulator.wrapping_add(value);
 
-        if self.s.get_carry() {
-            self.a += 1;
+        if self.status.get_carry() {
+            self.accumulator += 1;
         }
 
-        self.s.set_carry(carry);
-        self.s.set_zero(self.a == 0);
+        self.status.set_carry(carry);
+        self.status.set_zero(self.accumulator == 0);
         // TODO: set overflow flag
-        self.s.set_negative(self.a >> 7 == 1);
+        self.status.set_negative(self.accumulator >> 7 == 1);
     }
 
     fn and_accumulator(&mut self, value: u8) {
-        self.a &= value;
+        self.accumulator &= value;
 
-        self.s.set_zero(self.a == 0);
-        self.s.set_negative(self.a << 7 == 1);
+        self.status.set_zero(self.accumulator == 0);
+        self.status.set_negative(self.accumulator << 7 == 1);
     }
 
     fn shift_left_accumulator(&mut self) {
-        self.s.set_carry(self.a << 7 == 1);
-        self.a <<= 1;
+        self.status.set_carry(self.accumulator << 7 == 1);
+        self.accumulator <<= 1;
 
-        self.s.set_zero(self.a == 0);
-        self.s.set_negative(self.a << 7 == 1);
+        self.status.set_zero(self.accumulator == 0);
+        self.status.set_negative(self.accumulator << 7 == 1);
     }
 
     fn shift_left_memory(&mut self, location: MemLocation) {
-        self.s.set_carry(self.memory_read(location) << 7 == 1);
+        self.status.set_carry(self.memory_read(location) << 7 == 1);
         self.memory_write(self.memory_read(location) << 1, location);
 
-        self.s.set_zero(self.a == 0);
-        self.s.set_negative(self.a << 7 == 1);
+        self.status.set_zero(self.accumulator == 0);
+        self.status.set_negative(self.accumulator << 7 == 1);
     }
 }
 

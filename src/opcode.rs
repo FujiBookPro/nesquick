@@ -16,13 +16,20 @@ pub enum Instruction {
     And,
     Asl,
     Brk,
+    Clc,
+    Cld,
+    Cli,
+    Clv,
+    Dec,
+    Dex,
+    Dey,
     Lda,
     Ldx,
     Ldy,
     Sta,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum AddrMode {
     Implicit,
     Accumulator,
@@ -94,6 +101,23 @@ lazy_static! {
         o.insert(0x1E, Opcode(Instruction::Asl, AddrMode::AbsoluteX, 7, CycleLenType::Constant));
 
         o.insert(0x00, Opcode(Instruction::Brk, AddrMode::Implicit, 7, CycleLenType::Constant));
+
+        o.insert(0x18, Opcode(Instruction::Clc, AddrMode::Implicit, 2, CycleLenType::Constant));
+
+        o.insert(0xD8, Opcode(Instruction::Cld, AddrMode::Implicit, 2, CycleLenType::Constant));
+
+        o.insert(0x58, Opcode(Instruction::Cli, AddrMode::Implicit, 2, CycleLenType::Constant));
+
+        o.insert(0xB8, Opcode(Instruction::Clv, AddrMode::Implicit, 2, CycleLenType::Constant));
+
+        o.insert(0xC6, Opcode(Instruction::Dec, AddrMode::ZeroPage, 5, CycleLenType::Constant));
+        o.insert(0xD6, Opcode(Instruction::Dec, AddrMode::ZeroPageX, 6, CycleLenType::Constant));
+        o.insert(0xCE, Opcode(Instruction::Dec, AddrMode::Absolute, 6, CycleLenType::Constant));
+        o.insert(0xDE, Opcode(Instruction::Dec, AddrMode::AbsoluteX, 7, CycleLenType::Constant));
+
+        o.insert(0xCA, Opcode(Instruction::Dex, AddrMode::Implicit, 2, CycleLenType::Constant));
+
+        o.insert(0x88, Opcode(Instruction::Dey, AddrMode::Implicit, 2, CycleLenType::Constant));
 
         o.insert(0xA9, Opcode(Instruction::Lda, AddrMode::Immediate, 2, CycleLenType::Constant));
         o.insert(0xA5, Opcode(Instruction::Lda, AddrMode::ZeroPage, 3, CycleLenType::Constant));
