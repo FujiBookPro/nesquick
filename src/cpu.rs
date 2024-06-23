@@ -104,6 +104,35 @@ impl Cpu {
                 let value = self.get_value(&addr_mode);
                 self.load(Register::Y, value);
             }
+            Instruction::Lsr => {
+                if addr_mode == AddrMode::Accumulator {
+                    self.shift_right_accumulator();
+                } else {
+                    let location = self.get_location(&addr_mode);
+                    self.shift_right_memory(location);
+                }
+            }
+            Instruction::Nop => {}
+            Instruction::Ora => {
+                let value = self.get_value(&addr_mode);
+                self.or_accumulator(value);
+            }
+            Instruction::Rol => {
+                if addr_mode == AddrMode::Accumulator {
+                    self.rotate_left_accumulator();
+                } else {
+                    let location = self.get_location(&addr_mode);
+                    self.rotate_left_memory(location);
+                }
+            }
+            Instruction::Ror => {
+                if addr_mode == AddrMode::Accumulator {
+                    self.rotate_right_accumulator();
+                } else {
+                    let location = self.get_location(&addr_mode);
+                    self.rotate_right_memory(location);
+                }
+            }
             Instruction::Sta => {
                 let location = self.get_location(&addr_mode);
                 self.store(Register::A, location);
@@ -255,24 +284,111 @@ impl Cpu {
         self.status.set_negative(self.accumulator << 7 == 1);
     }
 
+    fn bitshift_and_set_flags(&mut self, value: &mut u8, direction: ShiftDirection) {
+        match direction {
+            ShiftDirection::Left => {
+                self.status.set_carry(*value >> 7 == 1); // bit 7 is stored in carry flag
+                *value <<= 1;
+            }
+            ShiftDirection::Right => {
+                self.status.set_carry(*value & 1 == 1); // bit 0 is stored in carry flag
+                *value >>= 1;
+            }
+        }
+
+        self.status.set_zero(*value == 0);
+        self.status.set_negative(*value >> 7 == 1);
+    }
+
     fn shift_left_accumulator(&mut self) {
-        self.status.set_carry(self.accumulator << 7 == 1);
-        self.accumulator <<= 1;
+        let mut value = self.accumulator;
+        self.bitshift_and_set_flags(&mut value, ShiftDirection::Left);
+
+        self.accumulator = value;
+    }
+
+    fn shift_left_memory(&mut self, location: MemLocation) {
+        let mut value = self.memory_read(location);
+        self.bitshift_and_set_flags(&mut value, ShiftDirection::Left);
+
+        self.memory_write(value, location);
+    }
+
+    fn shift_right_accumulator(&mut self) {
+        let mut value = self.accumulator;
+        self.bitshift_and_set_flags(&mut value, ShiftDirection::Right);
+
+        self.accumulator = value;
+    }
+
+    fn shift_right_memory(&mut self, location: MemLocation) {
+        let mut value = self.memory_read(location);
+        self.bitshift_and_set_flags(&mut value, ShiftDirection::Right);
+
+        self.memory_write(value, location);
+    }
+
+    fn rotate_and_set_flags(&mut self, value: &mut u8, direction: ShiftDirection) {
+        match direction {
+            ShiftDirection::Left => {
+                let old_carry_value = if self.status.get_carry() { 1 } else { 0 };
+
+                self.status.set_carry(*value >> 7 == 1); // old bit 7 is stored in carry flag
+                *value <<= 1;
+
+                *value |= old_carry_value; // original value of carry flag is placed in bit 0
+            }
+            ShiftDirection::Right => {
+                let old_carry_value = if self.status.get_carry() { 1 } else { 0 };
+
+                self.status.set_carry(*value & 1 == 1); // old bit 1 is stored in carry flag
+                *value >>= 1;
+
+                *value |= old_carry_value << 7; // original value of carry flag is placed in bit 7
+            }
+        }
 
         self.status.set_zero(self.accumulator == 0);
         self.status.set_negative(self.accumulator << 7 == 1);
     }
 
-    fn shift_left_memory(&mut self, location: MemLocation) {
-        self.status.set_carry(self.memory_read(location) << 7 == 1);
-        self.memory_write(self.memory_read(location) << 1, location);
+    fn rotate_left_accumulator(&mut self) {
+        let mut value = self.accumulator;
+        self.rotate_and_set_flags(&mut value, ShiftDirection::Left);
+
+        self.accumulator = value;
+    }
+
+    fn rotate_left_memory(&mut self, location: MemLocation) {
+        let mut value = self.memory_read(location);
+        self.rotate_and_set_flags(&mut value, ShiftDirection::Left);
+
+        self.memory_write(value, location);
+    }
+
+    fn rotate_right_accumulator(&mut self) {
+        let mut value = self.accumulator;
+        self.rotate_and_set_flags(&mut value, ShiftDirection::Right);
+
+        self.accumulator = value;
+    }
+
+    fn rotate_right_memory(&mut self, location: MemLocation) {
+        let mut value = self.memory_read(location);
+        self.rotate_and_set_flags(&mut value, ShiftDirection::Right);
+
+        self.memory_write(value, location);
+    }
+
+    fn or_accumulator(&mut self, value: u8) {
+        self.accumulator |= value;
 
         self.status.set_zero(self.accumulator == 0);
         self.status.set_negative(self.accumulator << 7 == 1);
     }
 
     fn xor_accumulator(&mut self, value: u8) {
-        self.accumulator |= value;
+        self.accumulator ^= value;
 
         self.status.set_zero(self.accumulator == 0);
         self.status.set_negative(self.accumulator << 7 == 1);
@@ -298,6 +414,11 @@ impl Cpu {
         self.status.set_zero(*reg_ref == 0);
         self.status.set_negative(*reg_ref << 7 == 1);
     }
+}
+
+enum ShiftDirection {
+    Left,
+    Right,
 }
 
 #[derive(Debug)]
