@@ -38,13 +38,15 @@ impl Cpu {
             let code = self.pc_next();
             let opcode = Opcode::decode(code);
             if let Some(opcode) = opcode {
-
                 if opcode.0 == Instruction::Brk {
                     break;
                 }
                 self.run_instruction(opcode);
 
-                println!("A: {:x}, PC: {:x} 0x02: {:x} 0x05: {:x}", self.accumulator, self.pc, self.memory[0x02], self.memory[0x05]);
+                println!(
+                    "A: {:x}, PC: {:x} 0x02: {:x} 0x05: {:x}",
+                    self.accumulator, self.pc, self.memory[0x02], self.memory[0x05]
+                );
             } else {
                 panic!("Unimplimented opcode {:x}", code);
             }
@@ -71,7 +73,15 @@ impl Cpu {
                     self.shift_left_memory(location);
                 }
             }
+            Instruction::Bcc => self.branch(!self.status.get_carry()),
+            Instruction::Bcs => self.branch(self.status.get_carry()),
+            Instruction::Beq => self.branch(self.status.get_zero()),
+            Instruction::Bmi => self.branch(self.status.get_negative()),
+            Instruction::Bne => self.branch(!self.status.get_zero()),
+            Instruction::Bpl => self.branch(self.status.get_negative()),
             Instruction::Brk => unreachable!(), // FIXME: Handle BRK more cleanly
+            Instruction::Bvc => self.branch(!self.status.get_overflow()),
+            Instruction::Bvs => self.branch(self.status.get_overflow()),
             Instruction::Clc => self.status.set_carry(false),
             Instruction::Cld => self.status.set_decimal(false),
             Instruction::Cli => self.status.set_int_disable(false),
@@ -170,7 +180,8 @@ impl Cpu {
                     MemLocation::page_0(self.memory_read(MemLocation::page_0(a)) + self.y);
                 self.memory_read(location)
             }
-            _ => panic!("Invalid address mode {:?}", addr_mode)
+            AddrMode::Relative => a,
+            _ => panic!("Invalid address mode {:?}", addr_mode),
         }
     }
 
@@ -234,6 +245,19 @@ impl Cpu {
         };
 
         self.memory_write(value, location);
+    }
+
+    fn branch(&mut self, should_branch: bool) {
+        let value = self.get_value(&AddrMode::Relative);
+        let value_i8: i8 = unsafe { std::mem::transmute(value) };
+        if should_branch {
+            // sure hope this gets optimized
+            if value_i8 >= 0 {
+                self.pc += value_i8 as u16;
+            } else {
+                self.pc -= value_i8.abs() as u16;
+            }
+        }
     }
 
     fn dec_memory(&mut self, location: MemLocation) {

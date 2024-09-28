@@ -15,7 +15,15 @@ pub enum Instruction {
     Adc,
     And,
     Asl,
+    Bcc,
+    Bcs,
+    Beq,
+    Bmi,
+    Bne,
+    Bpl,
     Brk,
+    Bvc,
+    Bvs,
     Clc,
     Cld,
     Cli,
@@ -79,9 +87,11 @@ impl AddrMode {
 pub enum CycleLenType {
     Constant,
     PageCrossed,
+    Branch,
 }
 
 lazy_static! {
+    #[rustfmt::skip]
     static ref OPCODES: HashMap<u8, Opcode> = {
         let mut o = HashMap::new();
 
@@ -109,7 +119,23 @@ lazy_static! {
         o.insert(0x0E, Opcode(Instruction::Asl, AddrMode::Absolute, 6, CycleLenType::Constant));
         o.insert(0x1E, Opcode(Instruction::Asl, AddrMode::AbsoluteX, 7, CycleLenType::Constant));
 
+        o.insert(0x90, Opcode(Instruction::Bcc, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0xB0, Opcode(Instruction::Bcs, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0xF0, Opcode(Instruction::Beq, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0x30, Opcode(Instruction::Bmi, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0xD0, Opcode(Instruction::Bne, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0x10, Opcode(Instruction::Bpl, AddrMode::Relative, 2, CycleLenType::Branch));
+
         o.insert(0x00, Opcode(Instruction::Brk, AddrMode::Implicit, 7, CycleLenType::Constant));
+
+        o.insert(0x50, Opcode(Instruction::Bvc, AddrMode::Relative, 2, CycleLenType::Branch));
+
+        o.insert(0x70, Opcode(Instruction::Bvs, AddrMode::Relative, 2, CycleLenType::Branch));
 
         o.insert(0x18, Opcode(Instruction::Clc, AddrMode::Implicit, 2, CycleLenType::Constant));
 
