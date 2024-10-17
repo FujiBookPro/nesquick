@@ -1,6 +1,5 @@
-use crate::opcode::AddrMode;
-use crate::opcode::Instruction;
-use crate::opcode::Opcode;
+use crate::bus::{Bus, MemLocation};
+use crate::opcode::{AddrMode, Instruction, Opcode};
 
 pub struct Cpu {
     pub accumulator: u8,
@@ -9,7 +8,7 @@ pub struct Cpu {
     pub pc: u16,
     pub status: CpuStatus,
     pub stack_pointer: u8,
-    pub memory: Vec<u8>,
+    pub bus: Bus,
 }
 
 impl Cpu {
@@ -21,14 +20,12 @@ impl Cpu {
             pc: 0,
             status: CpuStatus::new(),
             stack_pointer: 0,
-            memory: vec![0; 0xffff],
+            bus: Bus::new(),
         }
     }
 
-    pub fn load_program(&mut self, program: &[u8], location: u16) {
-        for (i, byte) in program.iter().enumerate() {
-            self.memory[i + location as usize] = *byte;
-        }
+    pub fn load_program(&mut self, program: &[u8], location: MemLocation) {
+        self.bus.load_program(program, location);
     }
 
     pub fn run(&mut self, start_address: u16) {
@@ -45,7 +42,10 @@ impl Cpu {
 
                 println!(
                     "A: {:x}, PC: {:x} 0x01: {:x} 0x05: {:x}",
-                    self.accumulator, self.pc, self.memory[0x01], self.memory[0x05]
+                    self.accumulator,
+                    self.pc,
+                    self.bus.read(MemLocation::page_0(0x01)),
+                    self.bus.read(MemLocation::page_0(0x05))
                 );
             } else {
                 panic!("Unimplimented opcode {:x}", code);
@@ -166,6 +166,14 @@ impl Cpu {
                 let location = self.get_location(&addr_mode);
                 self.store(Register::A, location);
             }
+            Instruction::Stx => {
+                let location = self.get_location(&addr_mode);
+                self.store(Register::X, location);
+            }
+            Instruction::Sty => {
+                let location = self.get_location(&addr_mode);
+                self.store(Register::Y, location);
+            }
         }
     }
 
@@ -236,8 +244,8 @@ impl Cpu {
         self.pc = match addr_mode {
             AddrMode::Absolute => value,
             AddrMode::Implicit => {
-                let first = self.memory[value as usize];
-                let second = self.memory[value as usize + 1];
+                let first = self.bus.read(MemLocation(value));
+                let second = self.bus.read(MemLocation(value + 1));
                 little_endian_to_big_endian(first, second)
             }
             _ => panic!("Invalid jump addressing mode: {:?}", addr_mode),
@@ -268,15 +276,15 @@ impl Cpu {
     }
 
     fn memory_read(&self, location: MemLocation) -> u8 {
-        self.memory[location.0 as usize]
+        self.bus.read(MemLocation(location.0))
     }
 
     fn memory_write(&mut self, value: u8, location: MemLocation) {
-        self.memory[location.0 as usize] = value;
+        self.bus.write(MemLocation(location.0), value);
     }
 
     fn pc_next(&mut self) -> u8 {
-        let value = self.memory[self.pc as usize];
+        let value = self.bus.read(MemLocation(self.pc));
         self.pc += 1;
         value
     }
@@ -517,7 +525,7 @@ impl Cpu {
     }
 }
 
-fn little_endian_to_big_endian(a: u8, b: u8) -> u16 {
+pub fn little_endian_to_big_endian(a: u8, b: u8) -> u16 {
     let mut r = 0;
     r += (b as u16) << 8;
     r += a as u16;
@@ -529,6 +537,7 @@ enum ShiftDirection {
     Right,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Register {
     A,
@@ -537,25 +546,6 @@ enum Register {
     PC,
     S,
     P,
-}
-
-/// Stores a big-endian 16-bit memory address
-#[derive(Copy, Clone, Debug)]
-#[repr(transparent)]
-struct MemLocation(pub u16);
-
-impl MemLocation {
-    pub fn page_0(location: u8) -> Self {
-        Self(location as u16)
-    }
-
-    pub fn stack(location: u8) -> Self {
-        Self(location as u16 + 0x0100)
-    }
-
-    pub fn from_little_endian(a: u8, b: u8) -> Self {
-        Self(little_endian_to_big_endian(a, b))
-    }
 }
 
 pub struct CpuStatus {

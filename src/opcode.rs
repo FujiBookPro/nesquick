@@ -54,6 +54,8 @@ pub enum Instruction {
     Ror,
     Rts,
     Sta,
+    Stx,
+    Sty,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -266,6 +268,14 @@ lazy_static! {
 
         o.insert(0x85, Opcode(Instruction::Sta, AddrMode::ZeroPage, 3, CycleLenType::Constant));
         o.insert(0x8d, Opcode(Instruction::Sta, AddrMode::Absolute, 4, CycleLenType::Constant));
+
+        o.insert(0x86, Opcode(Instruction::Stx, AddrMode::ZeroPage, 3, CycleLenType::Constant));
+        o.insert(0x96, Opcode(Instruction::Stx, AddrMode::ZeroPageY, 4, CycleLenType::Constant));
+        o.insert(0x8E, Opcode(Instruction::Stx, AddrMode::Absolute, 4, CycleLenType::Constant));
+
+        o.insert(0x84, Opcode(Instruction::Sty, AddrMode::ZeroPage, 3, CycleLenType::Constant));
+        o.insert(0x94, Opcode(Instruction::Sty, AddrMode::ZeroPageX, 4, CycleLenType::Constant));
+        o.insert(0x8C, Opcode(Instruction::Sty, AddrMode::Absolute, 4, CycleLenType::Constant));
 
         o
     };
