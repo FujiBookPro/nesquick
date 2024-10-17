@@ -10,7 +10,7 @@ impl Opcode {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Instruction {
     Adc,
     And,

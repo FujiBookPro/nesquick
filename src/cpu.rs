@@ -38,11 +38,16 @@ impl Cpu {
                 if opcode.0 == Instruction::Brk {
                     break;
                 }
+                let op_name = format!("{:?}", &opcode.0);
+
                 self.run_instruction(opcode);
 
                 println!(
-                    "A: {:x}, PC: {:x} 0x01: {:x} 0x05: {:x}",
+                    "{}: A: {:x}, X: {:x}, Z: {}, PC: {:x} 0x01: {:x} 0x05: {:x}",
+                    op_name,
                     self.accumulator,
+                    self.x,
+                    self.status.get_zero(),
                     self.pc,
                     self.bus.read(MemLocation::page_0(0x01)),
                     self.bus.read(MemLocation::page_0(0x05))
@@ -589,38 +594,39 @@ impl CpuStatus {
         self.byte & 1 << 7 != 0
     }
 
+    fn set_bit(&mut self, value: bool, offset: u8) {
+        if value {
+            self.byte |= 1 << offset;
+        } else {
+            self.byte &= !(1 << offset);
+        }
+    }
+
     pub fn set_carry(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n;
+        self.set_bit(value, 0);
     }
 
     pub fn set_zero(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 1;
+        self.set_bit(value, 1);
     }
 
     pub fn set_int_disable(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 2;
+        self.set_bit(value, 2);
     }
 
     pub fn set_decimal(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 3;
+        self.set_bit(value, 3);
     }
 
     pub fn set_break(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 4;
+        self.set_bit(value, 4);
     }
 
     pub fn set_overflow(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 6;
+        self.set_bit(value, 5);
     }
 
     pub fn set_negative(&mut self, value: bool) {
-        let n = if value { 1 } else { 0 };
-        self.byte &= n << 7;
+        self.set_bit(value, 7);
     }
 }
