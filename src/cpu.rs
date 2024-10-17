@@ -86,6 +86,18 @@ impl Cpu {
             Instruction::Cld => self.status.set_decimal(false),
             Instruction::Cli => self.status.set_int_disable(false),
             Instruction::Clv => self.status.set_overflow(false),
+            Instruction::Cmp => {
+                let value = self.get_value(&addr_mode);
+                self.cmp(value, self.accumulator);
+            }
+            Instruction::Cpx => {
+                let value = self.get_value(&addr_mode);
+                self.cmp(value, self.x);
+            }
+            Instruction::Cpy => {
+                let value = self.get_value(&addr_mode);
+                self.cmp(value, self.y);
+            }
             Instruction::Dec => {
                 let location = self.get_location(&addr_mode);
                 self.dec_memory(location);
@@ -365,6 +377,12 @@ impl Cpu {
 
         self.status.set_zero(self.accumulator == 0);
         self.status.set_negative(self.accumulator << 7 == 1);
+    }
+
+    fn cmp(&mut self, value: u8, register: u8) {
+        self.status.set_carry(register >= value);
+        self.status.set_zero(register == value);
+        self.status.set_negative(value >> 7 == 1);
     }
 
     fn bitshift_and_set_flags(&mut self, value: &mut u8, direction: ShiftDirection) {
