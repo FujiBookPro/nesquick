@@ -44,8 +44,8 @@ impl Cpu {
                 self.run_instruction(opcode);
 
                 println!(
-                    "A: {:x}, PC: {:x} 0x02: {:x} 0x05: {:x}",
-                    self.accumulator, self.pc, self.memory[0x02], self.memory[0x05]
+                    "A: {:x}, PC: {:x} 0x01: {:x} 0x05: {:x}",
+                    self.accumulator, self.pc, self.memory[0x01], self.memory[0x05]
                 );
             } else {
                 panic!("Unimplimented opcode {:x}", code);
@@ -102,6 +102,8 @@ impl Cpu {
             }
             Instruction::Inx => self.inc_register(Register::X),
             Instruction::Iny => self.inc_register(Register::Y),
+            Instruction::Jmp => self.jump(&addr_mode),
+            Instruction::Jsr => self.jump_sub(),
             Instruction::Lda => {
                 let value = self.get_value(&addr_mode);
                 self.load(Register::A, value);
@@ -127,6 +129,10 @@ impl Cpu {
                 let value = self.get_value(&addr_mode);
                 self.or_accumulator(value);
             }
+            Instruction::Pha => self.stack_push(self.accumulator),
+            Instruction::Php => self.stack_push(self.status.byte),
+            Instruction::Pla => self.accumulator = self.stack_pop(),
+            Instruction::Plp => self.status.byte = self.stack_pop(),
             Instruction::Rol => {
                 if addr_mode == AddrMode::Accumulator {
                     self.rotate_left_accumulator();
@@ -143,6 +149,7 @@ impl Cpu {
                     self.rotate_right_memory(location);
                 }
             }
+            Instruction::Rts => self.ret_sub(),
             Instruction::Sta => {
                 let location = self.get_location(&addr_mode);
                 self.store(Register::A, location);
@@ -208,6 +215,46 @@ impl Cpu {
         }
     }
 
+    fn jump(&mut self, addr_mode: &AddrMode) {
+        let a = self.pc_next();
+        let b = self.pc_next();
+
+        let value = little_endian_to_big_endian(a, b);
+
+        self.pc = match addr_mode {
+            AddrMode::Absolute => value,
+            AddrMode::Implicit => {
+                let first = self.memory[value as usize];
+                let second = self.memory[value as usize + 1];
+                little_endian_to_big_endian(first, second)
+            }
+            _ => panic!("Invalid jump addressing mode: {:?}", addr_mode),
+        }
+    }
+
+    fn jump_sub(&mut self) {
+        let a = self.pc_next();
+        let b = self.pc_next();
+
+        let value = little_endian_to_big_endian(a, b);
+
+        let return_addr = (self.pc - 1).to_le_bytes();
+
+        self.stack_push(return_addr[0]);
+        self.stack_push(return_addr[1]);
+
+        self.pc = value;
+    }
+
+    fn ret_sub(&mut self) {
+        let a = self.stack_pop();
+        let b = self.stack_pop();
+
+        let value = little_endian_to_big_endian(a, b);
+
+        self.pc = value;
+    }
+
     fn memory_read(&self, location: MemLocation) -> u8 {
         self.memory[location.0 as usize]
     }
@@ -258,6 +305,18 @@ impl Cpu {
                 self.pc -= value_i8.abs() as u16;
             }
         }
+    }
+
+    fn stack_push(&mut self, value: u8) {
+        self.memory_write(value, MemLocation::stack(self.stack_pointer));
+
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    }
+
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+
+        self.memory_read(MemLocation::stack(self.stack_pointer))
     }
 
     fn dec_memory(&mut self, location: MemLocation) {
@@ -440,6 +499,13 @@ impl Cpu {
     }
 }
 
+fn little_endian_to_big_endian(a: u8, b: u8) -> u16 {
+    let mut r = 0;
+    r += (b as u16) << 8;
+    r += a as u16;
+    r
+}
+
 enum ShiftDirection {
     Left,
     Right,
@@ -465,11 +531,12 @@ impl MemLocation {
         Self(location as u16)
     }
 
+    pub fn stack(location: u8) -> Self {
+        Self(location as u16 + 0x0100)
+    }
+
     pub fn from_little_endian(a: u8, b: u8) -> Self {
-        let mut location = 0;
-        location += (b as u16) << 8;
-        location += a as u16;
-        Self(location)
+        Self(little_endian_to_big_endian(a, b))
     }
 }
 
