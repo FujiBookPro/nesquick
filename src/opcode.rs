@@ -52,6 +52,7 @@ pub enum Instruction {
     Plp,
     Rol,
     Ror,
+    Rti,
     Rts,
     Sta,
     Stx,
@@ -263,6 +264,8 @@ lazy_static! {
         o.insert(0x76, Opcode(Instruction::Ror, AddrMode::ZeroPageX, 6, CycleLenType::Constant));
         o.insert(0x6E, Opcode(Instruction::Ror, AddrMode::Absolute, 6, CycleLenType::Constant));
         o.insert(0x7E, Opcode(Instruction::Ror, AddrMode::AbsoluteX, 7, CycleLenType::Constant));
+
+        o.insert(0x40, Opcode(Instruction::Rti, AddrMode::Implicit, 6, CycleLenType::Constant));
 
         o.insert(0x60, Opcode(Instruction::Rts, AddrMode::Implicit, 6, CycleLenType::Constant));
 

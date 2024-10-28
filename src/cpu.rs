@@ -84,7 +84,7 @@ impl Cpu {
             Instruction::Bmi => self.branch(self.status.get_negative()),
             Instruction::Bne => self.branch(!self.status.get_zero()),
             Instruction::Bpl => self.branch(self.status.get_negative()),
-            Instruction::Brk => unreachable!(), // FIXME: Handle BRK more cleanly
+            Instruction::Brk => self.interrupt(MemLocation(0xFFFE)),
             Instruction::Bvc => self.branch(!self.status.get_overflow()),
             Instruction::Bvs => self.branch(self.status.get_overflow()),
             Instruction::Clc => self.status.set_carry(false),
@@ -166,6 +166,7 @@ impl Cpu {
                     self.rotate_right_memory(location);
                 }
             }
+            Instruction::Rti => self.ret_interrupt(),
             Instruction::Rts => self.ret_sub(),
             Instruction::Sta => {
                 let location = self.get_location(&addr_mode);
@@ -278,6 +279,29 @@ impl Cpu {
         let value = little_endian_to_big_endian(a, b);
 
         self.pc = value;
+    }
+
+    fn interrupt(&mut self, location: MemLocation) {
+        let return_addr = (self.pc - 1).to_le_bytes();
+        self.stack_push(return_addr[0]);
+        self.stack_push(return_addr[1]);
+
+        let status = self.status.byte;
+        self.stack_push(status);
+
+        self.pc = location.0;
+    }
+
+    fn ret_interrupt(&mut self) {
+        let status = self.stack_pop();
+        self.status.byte = status;
+
+        let a = self.stack_pop();
+        let b = self.stack_pop();
+
+        let addr = little_endian_to_big_endian(a, b);
+
+        self.pc = addr;
     }
 
     fn memory_read(&self, location: MemLocation) -> u8 {
