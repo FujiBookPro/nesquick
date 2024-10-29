@@ -29,38 +29,22 @@ impl Cpu {
         }
     }
 
-    pub fn run(&mut self, start_address: u16) {
-        self.pc = start_address;
+    pub fn step(&mut self) {
+        let code = self.pc_next();
+        let opcode = Opcode::decode(code);
+        if let Some(opcode) = opcode {
+            println!("{:?}", &opcode.0);
 
-        loop {
-            let code = self.pc_next();
-            let opcode = Opcode::decode(code);
-            if let Some(opcode) = opcode {
-                if opcode.0 == Instruction::Brk {
-                    break;
-                }
-                let op_name = format!("{:?}", &opcode.0);
+            self.run_instruction(opcode);
 
-                self.run_instruction(opcode);
-
-                println!(
-                    "{}: A: {:x}, X: {:x}, Z: {}, PC: {:x} 0x01: {:x} 0x05: {:x}",
-                    op_name,
-                    self.accumulator,
-                    self.x,
-                    self.status.get_zero(),
-                    self.pc,
-                    self.bus.read(MemLocation::page_0(0x01)),
-                    self.bus.read(MemLocation::page_0(0x05))
-                );
-            } else {
-                panic!("Unimplimented opcode {:x}", code);
-            }
+            println!("{}", self);
+        } else {
+            panic!("Unimplimented opcode {:x}", code);
         }
     }
 
     fn run_instruction(&mut self, opcode: Opcode) {
-        let Opcode(instruction, addr_mode, _, _) = opcode;
+        let Opcode(instruction, addr_mode, _) = opcode;
 
         match instruction {
             Instruction::Adc => {
@@ -663,8 +647,8 @@ impl std::fmt::Display for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "A: {:x}, X: {:x}, S: {:08b}, PC: {:x}, SP: {:x}",
-            self.accumulator, self.x, self.status.byte, self.pc, self.stack_pointer,
+            "A: {:x}, X: {:x}, Y: {:x}, S: {:08b}, PC: {:x}, SP: {:x}",
+            self.accumulator, self.x, self.y, self.status.byte, self.pc, self.stack_pointer,
         )
     }
 }

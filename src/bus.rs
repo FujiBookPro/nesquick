@@ -8,22 +8,11 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new() -> Self {
-        Self {
-            ram: [0; 0x0800],
-            program_rom: [0; 0x8000],
-        }
-    }
-
     pub fn with_program_rom(program_rom: [u8; 0x8000]) -> Self {
         Self {
             ram: [0; 0x0800],
             program_rom,
         }
-    }
-
-    pub fn set_program_rom(&mut self, program_rom: [u8; 0x8000]) {
-        self.program_rom = program_rom;
     }
 
     pub fn read(&self, addr: MemLocation) -> u8 {

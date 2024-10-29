@@ -12,6 +12,19 @@ impl Console {
             cpu: Cpu::new(Bus::with_program_rom(game.program_rom)),
         }
     }
+
+    /// Decode and run `n` instructions
+    pub fn run_steps(&mut self, n: usize) {
+        for _ in 0..n {
+            self.cpu.step();
+        }
+    }
+
+    pub fn run_continuous(&mut self) {
+        loop {
+            self.cpu.step();
+        }
+    }
 }
 
 pub struct Game {
