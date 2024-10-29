@@ -12,20 +12,21 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub fn new(bus: Bus) -> Self {
+        let pc = little_endian_to_big_endian(
+            bus.read(MemLocation(0xFFFC)),
+            bus.read(MemLocation(0xFFFD)),
+        );
+
         Cpu {
             accumulator: 0,
             x: 0,
             y: 0,
-            pc: 0,
+            pc,
             status: CpuStatus::new(),
-            stack_pointer: 0,
-            bus: Bus::new(),
+            stack_pointer: 0xFD,
+            bus,
         }
-    }
-
-    pub fn load_program(&mut self, program: &[u8], location: MemLocation) {
-        self.bus.load_program(program, location);
     }
 
     pub fn run(&mut self, start_address: u16) {
@@ -289,7 +290,10 @@ impl Cpu {
         let status = self.status.byte;
         self.stack_push(status);
 
-        self.pc = location.0;
+        self.pc = little_endian_to_big_endian(
+            self.memory_read(location),
+            self.memory_read(MemLocation(location.0 + 1)),
+        )
     }
 
     fn ret_interrupt(&mut self) {
@@ -652,5 +656,15 @@ impl CpuStatus {
 
     pub fn set_negative(&mut self, value: bool) {
         self.set_bit(value, 7);
+    }
+}
+
+impl std::fmt::Display for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A: {:x}, X: {:x}, S: {:08b}, PC: {:x}, SP: {:x}",
+            self.accumulator, self.x, self.status.byte, self.pc, self.stack_pointer,
+        )
     }
 }
