@@ -18,6 +18,7 @@ pub enum Instruction {
     Bcc,
     Bcs,
     Beq,
+    Bit,
     Bmi,
     Bne,
     Bpl,
@@ -54,9 +55,19 @@ pub enum Instruction {
     Ror,
     Rti,
     Rts,
+    Sbc,
+    Sec,
+    Sed,
+    Sei,
     Sta,
     Stx,
     Sty,
+    Tax,
+    Tay,
+    Tsx,
+    Txa,
+    Txs,
+    Tya,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -137,6 +148,9 @@ lazy_static! {
         o.insert(0xB0, Opcode(Instruction::Bcs, AddrMode::Relative, CycleLen::Branch));
 
         o.insert(0xF0, Opcode(Instruction::Beq, AddrMode::Relative, CycleLen::Branch));
+
+        o.insert(0x24, Opcode(Instruction::Bit, AddrMode::ZeroPage, CycleLen::Constant(3)));
+        o.insert(0x2C, Opcode(Instruction::Bit, AddrMode::Absolute, CycleLen::Constant(4)));
 
         o.insert(0x30, Opcode(Instruction::Bmi, AddrMode::Relative, CycleLen::Branch));
 
@@ -269,6 +283,21 @@ lazy_static! {
 
         o.insert(0x60, Opcode(Instruction::Rts, AddrMode::Implicit, CycleLen::Constant(6)));
 
+        o.insert(0xE9, Opcode(Instruction::Sbc, AddrMode::Immediate, CycleLen::Constant(2)));
+        o.insert(0xE5, Opcode(Instruction::Sbc, AddrMode::ZeroPage, CycleLen::Constant(3)));
+        o.insert(0xF5, Opcode(Instruction::Sbc, AddrMode::ZeroPageX, CycleLen::Constant(4)));
+        o.insert(0xED, Opcode(Instruction::Sbc, AddrMode::Absolute, CycleLen::Constant(4)));
+        o.insert(0xFD, Opcode(Instruction::Sbc, AddrMode::AbsoluteX, CycleLen::PageCrossed(4)));
+        o.insert(0xF9, Opcode(Instruction::Sbc, AddrMode::AbsoluteY, CycleLen::PageCrossed(4)));
+        o.insert(0xE1, Opcode(Instruction::Sbc, AddrMode::IndirectX, CycleLen::Constant(6)));
+        o.insert(0xF1, Opcode(Instruction::Sbc, AddrMode::IndirectY, CycleLen::PageCrossed(5)));
+
+        o.insert(0x38, Opcode(Instruction::Sec, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0xF8, Opcode(Instruction::Sed, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0x78, Opcode(Instruction::Sei, AddrMode::Implicit, CycleLen::Constant(2)));
+
         o.insert(0x85, Opcode(Instruction::Sta, AddrMode::ZeroPage, CycleLen::Constant(3)));
         o.insert(0x8d, Opcode(Instruction::Sta, AddrMode::Absolute, CycleLen::Constant(4)));
 
@@ -279,6 +308,18 @@ lazy_static! {
         o.insert(0x84, Opcode(Instruction::Sty, AddrMode::ZeroPage, CycleLen::Constant(3)));
         o.insert(0x94, Opcode(Instruction::Sty, AddrMode::ZeroPageX, CycleLen::Constant(4)));
         o.insert(0x8C, Opcode(Instruction::Sty, AddrMode::Absolute, CycleLen::Constant(4)));
+
+        o.insert(0xAA, Opcode(Instruction::Tax, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0xA8, Opcode(Instruction::Tay, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0xBA, Opcode(Instruction::Tsx, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0x8A, Opcode(Instruction::Txa, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0x9A, Opcode(Instruction::Txs, AddrMode::Implicit, CycleLen::Constant(2)));
+
+        o.insert(0x98, Opcode(Instruction::Tya, AddrMode::Implicit, CycleLen::Constant(2)));
 
         o
     };

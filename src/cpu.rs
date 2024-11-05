@@ -66,10 +66,17 @@ impl Cpu {
             Instruction::Bcc => self.branch(!self.status.get_carry()),
             Instruction::Bcs => self.branch(self.status.get_carry()),
             Instruction::Beq => self.branch(self.status.get_zero()),
+            Instruction::Bit => {
+                let value = self.get_value(&addr_mode);
+                self.bit_test(value);
+            }
             Instruction::Bmi => self.branch(self.status.get_negative()),
             Instruction::Bne => self.branch(!self.status.get_zero()),
             Instruction::Bpl => self.branch(self.status.get_negative()),
-            Instruction::Brk => self.interrupt(MemLocation(0xFFFE)),
+            Instruction::Brk => {
+                self.status.set_break(true);
+                self.interrupt(MemLocation(0xFFFE));
+            }
             Instruction::Bvc => self.branch(!self.status.get_overflow()),
             Instruction::Bvs => self.branch(self.status.get_overflow()),
             Instruction::Clc => self.status.set_carry(false),
@@ -153,6 +160,13 @@ impl Cpu {
             }
             Instruction::Rti => self.ret_interrupt(),
             Instruction::Rts => self.ret_sub(),
+            Instruction::Sbc => {
+                let value = self.get_value(&addr_mode);
+                self.sub_accumulator(value);
+            }
+            Instruction::Sec => self.status.set_carry(true),
+            Instruction::Sed => self.status.set_decimal(true),
+            Instruction::Sei => self.status.set_int_disable(true),
             Instruction::Sta => {
                 let location = self.get_location(&addr_mode);
                 self.store(Register::A, location);
@@ -165,6 +179,12 @@ impl Cpu {
                 let location = self.get_location(&addr_mode);
                 self.store(Register::Y, location);
             }
+            Instruction::Tax => self.transfer(Register::A, Register::X),
+            Instruction::Tay => self.transfer(Register::A, Register::Y),
+            Instruction::Tsx => self.transfer(Register::S, Register::X),
+            Instruction::Txa => self.transfer(Register::X, Register::A),
+            Instruction::Txs => self.transfer(Register::X, Register::S),
+            Instruction::Tya => self.transfer(Register::Y, Register::A),
         }
     }
 
@@ -199,7 +219,7 @@ impl Cpu {
                 self.memory_read(location)
             }
             AddrMode::Relative => a,
-            _ => panic!("Invalid address mode {:?}", addr_mode),
+            _ => panic!("Invalid address mode {:?} in get_value", addr_mode),
         }
     }
 
@@ -222,7 +242,7 @@ impl Cpu {
             AddrMode::Absolute => MemLocation::from_little_endian(a, b),
             AddrMode::AbsoluteX => MemLocation::from_little_endian(a, b),
             AddrMode::AbsoluteY => MemLocation::from_little_endian(a, b),
-            _ => todo!(),
+            _ => panic!("Invalid address mode {:?} in get_location", addr_mode),
         }
     }
 
@@ -230,16 +250,16 @@ impl Cpu {
         let a = self.pc_next();
         let b = self.pc_next();
 
-        let value = little_endian_to_big_endian(a, b);
+        let jump_address = little_endian_to_big_endian(a, b);
 
         self.pc = match addr_mode {
-            AddrMode::Absolute => value,
+            AddrMode::Absolute => jump_address,
             AddrMode::Implicit => {
-                let first = self.bus.read(MemLocation(value));
-                let second = self.bus.read(MemLocation(value + 1));
+                let first = self.bus.read(MemLocation(jump_address));
+                let second = self.bus.read(MemLocation(jump_address + 1));
                 little_endian_to_big_endian(first, second)
             }
-            _ => panic!("Invalid jump addressing mode: {:?}", addr_mode),
+            _ => panic!("Invalid addressing mode: {:?} in jump", addr_mode),
         }
     }
 
@@ -247,26 +267,26 @@ impl Cpu {
         let a = self.pc_next();
         let b = self.pc_next();
 
-        let value = little_endian_to_big_endian(a, b);
+        let jump_address = little_endian_to_big_endian(a, b);
 
         let return_addr = (self.pc - 1).to_le_bytes();
 
         self.stack_push(return_addr[0]);
         self.stack_push(return_addr[1]);
 
-        self.pc = value;
+        self.pc = jump_address;
     }
 
     fn ret_sub(&mut self) {
         let a = self.stack_pop();
         let b = self.stack_pop();
 
-        let value = little_endian_to_big_endian(a, b);
+        let return_addr = little_endian_to_big_endian(a, b);
 
-        self.pc = value;
+        self.pc = return_addr;
     }
 
-    fn interrupt(&mut self, location: MemLocation) {
+    fn interrupt(&mut self, address: MemLocation) {
         let return_addr = (self.pc - 1).to_le_bytes();
         self.stack_push(return_addr[0]);
         self.stack_push(return_addr[1]);
@@ -275,8 +295,8 @@ impl Cpu {
         self.stack_push(status);
 
         self.pc = little_endian_to_big_endian(
-            self.memory_read(location),
-            self.memory_read(MemLocation(location.0 + 1)),
+            self.memory_read(address),
+            self.memory_read(MemLocation(address.0 + 1)),
         )
     }
 
@@ -307,17 +327,15 @@ impl Cpu {
     }
 
     fn load(&mut self, reg: Register, value: u8) {
-        let reg_ref = match reg {
-            Register::A => &mut self.accumulator,
-            Register::X => &mut self.x,
-            Register::Y => &mut self.y,
+        match reg {
+            Register::A => self.accumulator = value,
+            Register::X => self.x = value,
+            Register::Y => self.y = value,
             _ => panic!("Load into invalid register {:?}", reg),
         };
 
-        *reg_ref = value;
-
-        self.status.set_zero(*reg_ref == 0);
-        self.status.set_negative(*reg_ref << 7 == 1);
+        self.status.set_zero(value == 0);
+        self.status.set_negative(value << 7 == 1);
     }
 
     fn store(&mut self, reg: Register, location: MemLocation) {
@@ -331,14 +349,40 @@ impl Cpu {
         self.memory_write(value, location);
     }
 
+    fn transfer(&mut self, src: Register, dst: Register) {
+        let value = match src {
+            Register::A => self.accumulator,
+            Register::S => self.status.byte,
+            Register::X => self.x,
+            Register::Y => self.y,
+            _ => panic!("Transfer with invalid source register {:?}", src),
+        };
+
+        match dst {
+            Register::A => self.accumulator = value,
+            Register::S => self.status.byte = value,
+            Register::X => self.x = value,
+            Register::Y => self.y = value,
+            _ => panic!("Transfer with invalid destination register {:?}", dst),
+        }
+
+        if dst != Register::S {
+            self.status.set_zero(value == 0);
+            self.status.set_negative(value << 7 == 1);
+        }
+    }
+
     fn branch(&mut self, should_branch: bool) {
-        let value = self.get_value(&AddrMode::Relative);
-        let value_i8: i8 = unsafe { std::mem::transmute(value) };
+        // if should_branch is false, do nothing
         if should_branch {
-            // sure hope this gets optimized
+            let value = self.get_value(&AddrMode::Relative);
+            let value_i8: i8 = unsafe { std::mem::transmute(value) };
+
             if value_i8 >= 0 {
                 self.pc += value_i8 as u16;
             } else {
+                // cast negative component to unsigned int
+                // casting a negative signed int results in a crash
                 self.pc -= value_i8.abs() as u16;
             }
         }
@@ -347,6 +391,7 @@ impl Cpu {
     fn stack_push(&mut self, value: u8) {
         self.memory_write(value, MemLocation::stack(self.stack_pointer));
 
+        // TODO: refactor whole codebase to use wrapping math operations
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
     }
 
@@ -365,6 +410,7 @@ impl Cpu {
     }
 
     fn dec_register(&mut self, reg: Register) {
+        // take out a refernce to the target register to avoid repetitive code
         let reg_ref = match reg {
             Register::X => &mut self.x,
             Register::Y => &mut self.y,
@@ -378,20 +424,28 @@ impl Cpu {
     }
 
     fn add_accumulator(&mut self, value: u8) {
-        // The carry bit is included in the calculation. If it has already been set and the current
-        // calculation wraps, the result should wrap, unsetting the bit.
-        //
-        //   1 11111111
-        // +   00000001
-        // = 0 00000001
-        let carry = (self.accumulator as u16 + value as u16 > 255) ^ self.status.get_carry();
-        self.accumulator = self.accumulator.wrapping_add(value);
+        // A = A + M + C
+        // Carry is set after the operation if A overflowed
+        let c: u8 = if self.status.get_carry() { 1 } else { 0 };
+        let need_to_set_carry = self.accumulator as u16 + value as u16 + c as u16 > 255;
 
-        if self.status.get_carry() {
-            self.accumulator += 1;
-        }
+        self.accumulator += value + c;
 
-        self.status.set_carry(carry);
+        self.status.set_carry(need_to_set_carry);
+        self.status.set_zero(self.accumulator == 0);
+        // TODO: set overflow flag
+        self.status.set_negative(self.accumulator >> 7 == 1);
+    }
+
+    fn sub_accumulator(&mut self, value: u8) {
+        // A = A - M - (1 - C)
+        // Carry is clear after the operation if A underflowed
+        let c_inverse: u8 = if !self.status.get_carry() { 1 } else { 0 };
+        let need_to_clear_carry = (self.accumulator as i16 - value as i16 - c_inverse as i16) < 0;
+
+        self.accumulator -= value + c_inverse;
+
+        self.status.set_carry(!need_to_clear_carry);
         self.status.set_zero(self.accumulator == 0);
         // TODO: set overflow flag
         self.status.set_negative(self.accumulator >> 7 == 1);
@@ -408,6 +462,13 @@ impl Cpu {
         self.status.set_carry(register >= value);
         self.status.set_zero(register == value);
         self.status.set_negative(value >> 7 == 1);
+    }
+
+    fn bit_test(&mut self, value: u8) {
+        self.status.set_zero(self.accumulator & value == 0);
+
+        self.status.set_overflow(value >> 6 != 0);
+        self.status.set_negative(value >> 7 != 0);
     }
 
     fn bitshift_and_set_flags(&mut self, value: &mut u8, direction: ShiftDirection) {
@@ -555,7 +616,7 @@ enum ShiftDirection {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Register {
     A,
     X,
@@ -574,10 +635,6 @@ impl CpuStatus {
         Self {
             byte: 1 << 5, // the 5th bit is always set
         }
-    }
-
-    pub fn get_register_byte(&self) -> u8 {
-        self.byte
     }
 
     pub fn get_carry(&self) -> bool {
