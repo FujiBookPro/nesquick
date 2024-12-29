@@ -3,6 +3,7 @@ mod console;
 mod cpu;
 mod file;
 mod opcode;
+mod ppu;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

@@ -12,7 +12,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(bus: Bus) -> Self {
+    pub fn new(mut bus: Bus) -> Self {
         let pc = little_endian_to_big_endian(
             bus.read(MemLocation(0xFFFC)),
             bus.read(MemLocation(0xFFFD)),
@@ -312,7 +312,7 @@ impl Cpu {
         self.pc = addr;
     }
 
-    fn memory_read(&self, location: MemLocation) -> u8 {
+    fn memory_read(&mut self, location: MemLocation) -> u8 {
         self.bus.read(MemLocation(location.0))
     }
 
@@ -381,9 +381,7 @@ impl Cpu {
             if value_i8 >= 0 {
                 self.pc += value_i8 as u16;
             } else {
-                // cast negative component to unsigned int
-                // casting a negative signed int results in a crash
-                self.pc -= value_i8.abs() as u16;
+                self.pc -= value_i8.unsigned_abs() as u16;
             }
         }
     }
@@ -402,7 +400,8 @@ impl Cpu {
     }
 
     fn dec_memory(&mut self, location: MemLocation) {
-        self.memory_write(self.memory_read(location) - 1, location);
+        let value = self.memory_read(location);
+        self.memory_write(value - 1, location);
 
         let new_value = self.memory_read(location);
         self.status.set_zero(new_value == 0);
@@ -582,7 +581,8 @@ impl Cpu {
     }
 
     fn inc_memory(&mut self, location: MemLocation) {
-        self.memory_write(self.memory_read(location) + 1, location);
+        let value = self.memory_read(location);
+        self.memory_write(value + 1, location);
 
         let new_value = self.memory_read(location);
         self.status.set_zero(new_value == 0);

@@ -54,5 +54,5 @@ pub fn read_ines_file(path: &str) -> Result<Game, String> {
 
     // copy char rom
 
-    return Ok(Game { program_rom });
+    Ok(Game { program_rom })
 }

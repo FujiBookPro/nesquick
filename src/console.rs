@@ -1,16 +1,18 @@
-use crate::{bus::Bus, cpu::Cpu};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::{bus::Bus, cpu::Cpu, ppu::Ppu};
 
 pub struct Console {
     pub cpu: Cpu,
-    // PPU
-    // RAM
+    pub ppu: Rc<RefCell<Ppu>>,
 }
 
 impl Console {
     pub fn new(game: Game) -> Self {
-        Self {
-            cpu: Cpu::new(Bus::with_program_rom(game.program_rom)),
-        }
+        let ppu = Rc::new(RefCell::new(Ppu::new()));
+        let cpu = Cpu::new(Bus::new(game.program_rom, Rc::clone(&ppu)));
+        Self { cpu, ppu }
     }
 
     /// Decode and run `n` instructions
