@@ -33,7 +33,7 @@ impl Cpu {
         let code = self.pc_next();
         let opcode = Opcode::decode(code);
         if let Some(opcode) = opcode {
-            println!("{:?}", &opcode.0);
+            println!("{:?} ({:x})", &opcode.0, code);
 
             self.run_instruction(opcode);
 
@@ -72,7 +72,7 @@ impl Cpu {
             }
             Instruction::Bmi => self.branch(self.status.get_negative()),
             Instruction::Bne => self.branch(!self.status.get_zero()),
-            Instruction::Bpl => self.branch(self.status.get_negative()),
+            Instruction::Bpl => self.branch(!self.status.get_negative()),
             Instruction::Brk => {
                 self.status.set_break(true);
                 self.interrupt(MemLocation(0xFFFE));
@@ -352,7 +352,7 @@ impl Cpu {
     fn transfer(&mut self, src: Register, dst: Register) {
         let value = match src {
             Register::A => self.accumulator,
-            Register::S => self.status.byte,
+            Register::S => self.stack_pointer,
             Register::X => self.x,
             Register::Y => self.y,
             _ => panic!("Transfer with invalid source register {:?}", src),
@@ -360,22 +360,20 @@ impl Cpu {
 
         match dst {
             Register::A => self.accumulator = value,
-            Register::S => self.status.byte = value,
+            Register::S => self.stack_pointer = value,
             Register::X => self.x = value,
             Register::Y => self.y = value,
             _ => panic!("Transfer with invalid destination register {:?}", dst),
         }
 
-        if dst != Register::S {
-            self.status.set_zero(value == 0);
-            self.status.set_negative(value << 7 == 1);
-        }
+        self.status.set_zero(value == 0);
+        self.status.set_negative(value << 7 == 1);
     }
 
     fn branch(&mut self, should_branch: bool) {
-        // if should_branch is false, do nothing
+        // need to grab value to advance program counter
+        let value = self.get_value(&AddrMode::Relative);
         if should_branch {
-            let value = self.get_value(&AddrMode::Relative);
             let value_i8: i8 = unsafe { std::mem::transmute(value) };
 
             if value_i8 >= 0 {
@@ -428,7 +426,7 @@ impl Cpu {
         let c: u8 = if self.status.get_carry() { 1 } else { 0 };
         let need_to_set_carry = self.accumulator as u16 + value as u16 + c as u16 > 255;
 
-        self.accumulator += value + c;
+        self.accumulator = self.accumulator.wrapping_add(value + c);
 
         self.status.set_carry(need_to_set_carry);
         self.status.set_zero(self.accumulator == 0);
@@ -596,7 +594,7 @@ impl Cpu {
             _ => panic!("Decriment invalid register {:?}", reg),
         };
 
-        *reg_ref += 1;
+        *reg_ref = reg_ref.wrapping_add(1);
 
         self.status.set_zero(*reg_ref == 0);
         self.status.set_negative(*reg_ref << 7 == 1);

@@ -299,7 +299,12 @@ lazy_static! {
         o.insert(0x78, Opcode(Instruction::Sei, AddrMode::Implicit, CycleLen::Constant(2)));
 
         o.insert(0x85, Opcode(Instruction::Sta, AddrMode::ZeroPage, CycleLen::Constant(3)));
+        o.insert(0x95, Opcode(Instruction::Sta, AddrMode::ZeroPageX, CycleLen::Constant(4)));
         o.insert(0x8d, Opcode(Instruction::Sta, AddrMode::Absolute, CycleLen::Constant(4)));
+        o.insert(0x9d, Opcode(Instruction::Sta, AddrMode::AbsoluteX, CycleLen::Constant(5)));
+        o.insert(0x99, Opcode(Instruction::Sta, AddrMode::AbsoluteY, CycleLen::Constant(5)));
+        o.insert(0x81, Opcode(Instruction::Sta, AddrMode::IndirectX, CycleLen::Constant(6)));
+        o.insert(0x91, Opcode(Instruction::Sta, AddrMode::IndirectY, CycleLen::Constant(6)));
 
         o.insert(0x86, Opcode(Instruction::Stx, AddrMode::ZeroPage, CycleLen::Constant(3)));
         o.insert(0x96, Opcode(Instruction::Stx, AddrMode::ZeroPageY, CycleLen::Constant(4)));
