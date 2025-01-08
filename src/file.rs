@@ -47,12 +47,22 @@ pub fn read_ines_file(path: &str) -> Result<Game, String> {
         return Err("Unsupported feature: rom mapping".to_string());
     }
 
+    if chr_size != 1 {
+        return Err("Unsupported feature: non-standard chr-rom".to_string());
+    }
+
     // copy program rom
     let mut program_rom = [0; 0x8000];
-    let end_byte = 0x10 + 0x4000 * prg_size as usize;
-    program_rom.clone_from_slice(&file[0x10..end_byte]);
+    let end_prg_byte = 0x10 + 0x4000 * prg_size as usize;
+    program_rom.clone_from_slice(&file[0x10..end_prg_byte]);
 
     // copy char rom
+    let mut character_rom = [0; 0x2000];
+    let end_chr_byte = end_prg_byte + 0x2000 * chr_size as usize;
+    character_rom.clone_from_slice(&file[end_prg_byte..end_chr_byte]);
 
-    Ok(Game { program_rom })
+    Ok(Game {
+        program_rom,
+        character_rom,
+    })
 }

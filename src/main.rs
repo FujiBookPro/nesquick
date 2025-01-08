@@ -12,5 +12,5 @@ fn main() {
     let mut nes = crate::console::Console::new(game);
     println!("{}", nes.cpu);
 
-    nes.run_steps(10);
+    nes.run_continuous();
 }

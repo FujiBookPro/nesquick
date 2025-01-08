@@ -10,18 +10,20 @@ pub struct Console {
 
 impl Console {
     pub fn new(game: Game) -> Self {
-        let ppu = Rc::new(RefCell::new(Ppu::new()));
+        let ppu = Rc::new(RefCell::new(Ppu::new(game.character_rom)));
         let cpu = Cpu::new(Bus::new(game.program_rom, Rc::clone(&ppu)));
         Self { cpu, ppu }
     }
 
     /// Decode and run `n` instructions
+    #[allow(dead_code)]
     pub fn run_steps(&mut self, n: usize) {
         for _ in 0..n {
             self.cpu.step();
         }
     }
 
+    #[allow(dead_code)]
     pub fn run_continuous(&mut self) {
         loop {
             self.cpu.step();
@@ -31,6 +33,5 @@ impl Console {
 
 pub struct Game {
     pub program_rom: [u8; 0x8000],
-    // character_rom
-    // cartridge ram?
+    pub character_rom: [u8; 0x2000], // cartridge ram?
 }
