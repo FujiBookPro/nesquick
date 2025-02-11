@@ -22,7 +22,8 @@ pub enum PpuRegister {
     OamDma,
 }
 
-pub struct Frame;
+/// [line from top][pixel from left]
+pub struct Frame([[u8; 240]; 256]);
 
 impl Ppu {
     pub fn new(character_rom: [u8; 0x2000]) -> Self {
@@ -38,7 +39,58 @@ impl Ppu {
         }
     }
     pub fn draw_frame(&self) -> Frame {
-        Frame
+        let mut frame = Frame([[0x1d; 240]; 256]);
+
+        // FIXME: Render background
+
+        // Render sprites
+        // FIXME: Correctly render sprites
+        let mut secondary_oam = [0; 32];
+
+        for scanline in 0..240 {
+            // Fetch the first 8 sprites that appear on this scanline to the secondary oam
+            let mut sec_oam_index = 0;
+            for i in 0..64 {
+                let y = self.oam[i * 4];
+                if y > scanline - 8 && y <= scanline {
+                    secondary_oam[sec_oam_index] = self.oam[i * 4];
+                    secondary_oam[sec_oam_index + 1] = self.oam[i * 4 + 1];
+                    secondary_oam[sec_oam_index + 2] = self.oam[i * 4 + 2];
+                    secondary_oam[sec_oam_index + 3] = self.oam[i * 4 + 3];
+
+                    sec_oam_index += 1;
+
+                    if sec_oam_index == 8 {
+                        break;
+                    }
+                }
+            }
+
+            // Render sprite pixels
+            for sprite in 0..sec_oam_index {
+                for pixel in 0..8 {
+                    let pattern_x = pixel;
+                    let pattern_y = scanline - secondary_oam[sprite];
+
+                    // pattern table index stored in byte 1
+                    let pattern_index = secondary_oam[sprite + 1];
+                    // sprites use palettes 4-7, stored in the first two bits of byte 2
+                    let palette = (secondary_oam[sprite + 2] & 0b11) + 4;
+
+                    let color = self.evalueate_pixel(pattern_index, palette, pattern_x, pattern_y);
+
+                    // screen x: (sprite x stored in byte 3) + (current pixel)
+                    frame.0[scanline as usize]
+                        [pixel as usize + secondary_oam[sprite + 3] as usize] = color;
+                }
+            }
+        }
+
+        frame
+    }
+
+    fn evalueate_pixel(&self, pattern_index: u8, palette: u8, x: u8, y: u8) -> u8 {
+        0x00
     }
 
     pub fn write_register(&mut self, reg: PpuRegister, value: u8) {
